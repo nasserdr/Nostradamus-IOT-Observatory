@@ -1,0 +1,1130 @@
+openapi: 3.1.0
+info:
+  title: Nostradamus IoTO API
+  description: >-
+    The Nostradamus IoTO API provides endpoints for managing the Nostradamus
+    IoTO platform.
+  version: 1.0.1
+paths:
+  /api/v1/token:
+    post:
+      tags:
+        - Authentication
+      summary: Login For Access Token
+      operationId: login_for_access_token_api_v1_token_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: >-
+                #/components/schemas/Body_login_for_access_token_api_v1_token_post
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/organization/nostradamus:
+    get:
+      tags:
+        - Organization Management
+      summary: Get Organization Info
+      operationId: get_organization_info_api_v1_organization_nostradamus_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+      security:
+        - OAuth2PasswordBearer: []
+    put:
+      tags:
+        - Organization Management
+      summary: Update Organization
+      operationId: update_organization_api_v1_organization_nostradamus_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects:
+    get:
+      tags:
+        - Project Management
+      summary: Get All Projects
+      operationId: get_all_projects_api_v1_projects_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ProjectResponse'
+                type: array
+                title: Response Get All Projects Api V1 Projects Get
+      security:
+        - OAuth2PasswordBearer: []
+    post:
+      tags:
+        - Project Management
+      summary: Create Project
+      operationId: create_project_api_v1_projects_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - OAuth2PasswordBearer: []
+  /api/v1/projects/{project_id}:
+    put:
+      tags:
+        - Project Management
+      summary: Update Project
+      operationId: update_project_api_v1_projects__project_id__put
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Project Management
+      summary: Delete Project
+      operationId: delete_project_api_v1_projects__project_id__delete
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Project Management
+      summary: Get Project By Id
+      operationId: get_project_by_id_api_v1_projects__project_id__get
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/keys:
+    post:
+      tags:
+        - Project Key Management
+      summary: Create Project Key
+      operationId: create_project_key_api_v1_projects__project_id__keys_post
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectKeyCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectKeyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Project Key Management
+      summary: Fetch Project Keys By Category
+      operationId: fetch_project_keys_by_category_api_v1_projects__project_id__keys_get
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: key_category
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            enum:
+              - read
+              - write
+              - master
+              - all
+            title: Key Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectKeyResponse'
+                title: >-
+                  Response Fetch Project Keys By Category Api V1 Projects 
+                  Project Id  Keys Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/keys/regenerate:
+    put:
+      tags:
+        - Project Key Management
+      summary: Regenerate Project Key
+      operationId: regenerate_project_key_api_v1_projects__project_id__keys_regenerate_put
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseKeyModel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectKeyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/keys/delete_keys:
+    delete:
+      tags:
+        - Project Key Management
+      summary: Delete Keys By Category
+      operationId: >-
+        delete_keys_by_category_api_v1_projects__project_id__keys_delete_keys_delete
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: key_category
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - read
+              - write
+              - master
+              - all
+            title: Key Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/keys/delete_key:
+    delete:
+      tags:
+        - Project Key Management
+      summary: Delete Key By Value
+      operationId: delete_key_by_value_api_v1_projects__project_id__keys_delete_key_delete
+      security:
+        - OAuth2PasswordBearer: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseKeyModel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/collections:
+    post:
+      tags:
+        - Collection Management
+      summary: Create Collection
+      operationId: create_collection_api_v1_projects__project_id__collections_post
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Collection Management
+      summary: Get All Collections
+      operationId: get_all_collections_api_v1_projects__project_id__collections_get
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionResponse'
+                title: >-
+                  Response Get All Collections Api V1 Projects  Project Id 
+                  Collections Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/collections/{collection_id}:
+    put:
+      tags:
+        - Collection Management
+      summary: Update Collection
+      operationId: >-
+        update_collection_api_v1_projects__project_id__collections__collection_id__put
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectionUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Collection Management
+      summary: Delete Collection
+      operationId: >-
+        delete_collection_api_v1_projects__project_id__collections__collection_id__delete
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Collection Management
+      summary: Get Collection Info
+      operationId: >-
+        get_collection_info_api_v1_projects__project_id__collections__collection_id__get
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/collections/{collection_id}/send_data:
+    post:
+      tags:
+        - Send Data
+      summary: Send Data To Collection
+      operationId: >-
+        send_data_to_collection_api_v1_projects__project_id__collections__collection_id__send_data_post
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              anyOf:
+                - type: object
+                - type: array
+                  items:
+                    type: object
+              title: Data
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/collections/{collection_id}/get_data:
+    get:
+      tags:
+        - Get Data
+      summary: Get Data From Collection
+      operationId: >-
+        get_data_from_collection_api_v1_projects__project_id__collections__collection_id__get_data_get
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+        - name: attributes
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+            title: Attributes
+        - name: filters
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Filters
+        - name: order_by
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Order By
+        - name: nested
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+            title: Nested
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/collections/{collection_id}/statistics:
+    get:
+      tags:
+        - Get Data Statistics
+      summary: Get Collection Statistics
+      operationId: >-
+        get_collection_statistics_api_v1_projects__project_id__collections__collection_id__statistics_get
+      security:
+        - OAuth2PasswordBearer: []
+        - APIKeyHeader: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Project Id
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Collection Id
+        - name: attribute
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Attribute
+        - name: stat
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Statistical operation to perform
+            enum:
+              - avg
+              - max
+              - min
+              - sum
+              - count
+            default: avg
+            title: Stat
+          description: Statistical operation to perform
+        - name: interval
+          in: query
+          required: false
+          schema:
+            type: string
+            default: every_2_days
+            title: Interval
+        - name: start_time
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Start time in format YYYY-MM-DDTHH:MM:SSZ
+            title: Start Time
+          description: Start time in format YYYY-MM-DDTHH:MM:SSZ
+        - name: end_time
+          in: query
+          required: false
+          schema:
+            type: string
+            description: End time in format YYYY-MM-DDTHH:MM:SSZ
+            title: End Time
+          description: End time in format YYYY-MM-DDTHH:MM:SSZ
+        - name: filters
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Filters
+        - name: order
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            enum:
+              - asc
+              - desc
+            title: Order
+        - name: group_by
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Group By
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    BaseKeyModel:
+      properties:
+        key_value:
+          type: string
+          title: Key Value
+      type: object
+      required:
+        - key_value
+      title: BaseKeyModel
+    Body_login_for_access_token_api_v1_token_post:
+      properties:
+        grant_type:
+          anyOf:
+            - type: string
+              pattern: ^password$
+            - type: 'null'
+          title: Grant Type
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          title: Password
+        scope:
+          type: string
+          title: Scope
+          default: ''
+        client_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Id
+        client_secret:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Secret
+      type: object
+      required:
+        - username
+        - password
+      title: Body_login_for_access_token_api_v1_token_post
+    CollectionCreateRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+          default: []
+        collection_schema:
+          type: object
+          title: Collection Schema
+      type: object
+      required:
+        - name
+        - description
+        - collection_schema
+      title: CollectionCreateRequest
+    CollectionResponse:
+      properties:
+        collection_name:
+          type: string
+          title: Collection Name
+        collection_id:
+          type: string
+          format: uuid
+          title: Collection Id
+        project_id:
+          type: string
+          format: uuid
+          title: Project Id
+        project_name:
+          type: string
+          title: Project Name
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        organization_name:
+          type: string
+          title: Organization Name
+        description:
+          type: string
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        creation_date:
+          type: string
+          title: Creation Date
+        collection_schema:
+          type: object
+          title: Collection Schema
+      type: object
+      required:
+        - collection_name
+        - collection_id
+        - project_id
+        - project_name
+        - organization_id
+        - organization_name
+        - description
+        - tags
+        - creation_date
+        - collection_schema
+      title: CollectionResponse
+    CollectionUpdateRequest:
+      properties:
+        description:
+          type: string
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+      type: object
+      title: CollectionUpdateRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    OrganizationResponse:
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        organization_name:
+          type: string
+          title: Organization Name
+        description:
+          type: string
+          title: Description
+        creation_date:
+          type: string
+          title: Creation Date
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+      type: object
+      required:
+        - organization_id
+        - organization_name
+        - description
+        - creation_date
+      title: OrganizationResponse
+    OrganizationUpdateRequest:
+      properties:
+        description:
+          type: string
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+      type: object
+      title: OrganizationUpdateRequest
+    ProjectCreateRequest:
+      properties:
+        project_name:
+          type: string
+          title: Project Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+      type: object
+      required:
+        - project_name
+        - description
+        - tags
+      title: ProjectCreateRequest
+    ProjectKeyCreateRequest:
+      properties:
+        key_type:
+          type: string
+          enum:
+            - read
+            - write
+            - master
+          title: Key Type
+          description: >-
+            The type of the key for the project. It can be 'read', 'write', or
+            'master'.
+          example: read
+      type: object
+      required:
+        - key_type
+      title: ProjectKeyCreateRequest
+    ProjectKeyResponse:
+      properties:
+        api_key:
+          type: string
+          title: Api Key
+        project_id:
+          type: string
+          format: uuid
+          title: Project Id
+        key_type:
+          type: string
+          title: Key Type
+        created_at:
+          type: string
+          title: Created At
+      type: object
+      required:
+        - api_key
+        - project_id
+        - key_type
+        - created_at
+      title: ProjectKeyResponse
+    ProjectResponse:
+      properties:
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        project_id:
+          type: string
+          format: uuid
+          title: Project Id
+        organization_name:
+          type: string
+          title: Organization Name
+        project_name:
+          type: string
+          title: Project Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        creation_date:
+          type: string
+          title: Creation Date
+      type: object
+      required:
+        - organization_id
+        - project_id
+        - organization_name
+        - project_name
+        - description
+        - tags
+        - creation_date
+      title: ProjectResponse
+    ProjectUpdateRequest:
+      properties:
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        tags:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Tags
+      type: object
+      required:
+        - description
+        - tags
+      title: ProjectUpdateRequest
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+  securitySchemes:
+    OAuth2PasswordBearer:
+      type: oauth2
+      flows:
+        password:
+          scopes: {}
+          tokenUrl: /api/v1/token
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
