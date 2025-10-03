@@ -1,0 +1,9 @@
+[project]
+name = "Agroscope-MeteoSwiss-Nostradamus"
+version = "0.0.1"
+requires-python = "==3.11.*"
+dependencies = [
+    "pandas",
+    "requests",
+    "urllib3"
+]
