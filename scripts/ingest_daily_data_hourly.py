@@ -1,8 +1,10 @@
 import io
 import json
 import re
-from datetime import datetime
-from typing import Dict, List
+import os
+import argparse
+from typing import Dict, List, Tuple
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import requests
@@ -13,170 +15,274 @@ import urllib3
 # ──────────────────────────────────────────────────────────────────────────────
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-with open("configs.json", "r", encoding="utf-8") as f:
+with open("config/secrets.json", "r", encoding="utf-8") as f:
+    secrets = json.load(f)
+
+with open("config/settings.json", "r", encoding="utf-8") as f:
     cfg = json.load(f)
 
 PROJECT_ID = cfg["PROJECT_ID"]
 BASE_URL   = cfg["BASE_URL"].rstrip("/")
-MASTER_KEY = cfg.get("master")  # only needed if you want to create the collection
-WRITE_KEY  = cfg.get("write")   # ← use 'write' for sending data
-READ_KEY   = cfg.get("read")    # not used here
+MASTER_KEY = secrets.get("master")
+WRITE_KEY  = secrets.get("write")
 
-# Your target collection id (create it once in your system; keep the id here)
-COLLECTION_ID = "Your_collection_id"
-
-# MeteoSwiss source files
-URL_DATA = "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/tae/ogd-smn_tae_t_now.csv"
-PARAM_FILE = "ogd-smn_meta_parameters.csv"  # local copy; use latin1
+COLLECTION_ID       = cfg["COLLECTION_ID"] 
+PARAM_FILE          = "config/ogd-smn_meta_parameters.csv"
+STATION_META_FILE   = "config/ch.meteoschweiz.messnetz-automatisch_en.csv"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Download + Mapping
+# Download
 # ──────────────────────────────────────────────────────────────────────────────
 def download_csv(url: str) -> pd.DataFrame:
-    """Download CSV, skip SSL verification, return DataFrame (semicolon-separated)."""
+    """Download MeteoSwiss CSV (semicolon-separated)."""
     r = requests.get(url, verify=False, timeout=30)
     r.raise_for_status()
     return pd.read_csv(io.BytesIO(r.content), delimiter=";")
 
 def build_param_map_from_df(meta_df: pd.DataFrame) -> Dict[str, str]:
-    """Use column 1 (parameter) and column 5 (parameter_description_en) to build map."""
+    """Use parameter + English description to build map."""
     sub = meta_df.iloc[:, [0, 4]].dropna()
     sub.columns = ["parameter", "parameter_description_en"]
     return dict(zip(sub["parameter"].str.strip(), sub["parameter_description_en"].str.strip()))
 
 def clean_name(s: str) -> str:
-    """Keep before first ';', lowercase, non-alnum→'_', strip '_'."""
+    """Convert arbitrary description to snake_case."""
     s = s.split(";")[0]
     s = s.lower()
     s = re.sub(r"[^0-9a-zA-Z]+", "_", s)
     return s.strip("_")
 
+
 # ──────────────────────────────────────────────────────────────────────────────
-# Transform (rename to readable columns)
+# Station metadata: latitude / longitude
 # ──────────────────────────────────────────────────────────────────────────────
-def rename_data_columns(df_data: pd.DataFrame, param_map_full: Dict[str, str]) -> pd.DataFrame:
-    # restrict mapping to columns present in data
+def get_station_lat_lon(station_code: str) -> Tuple[float | None, float | None]:
+    """
+    Look up latitude/longitude for the given station code (Abbr.)
+    in STATION_META_FILE and return (lat, lon) as floats.
+
+    Returns (None, None) if not found.
+    """
+    sc = station_code.upper().strip()
+    df_meta = pd.read_csv(STATION_META_FILE, sep=";", encoding="latin1", dtype=str)
+
+    # Some safety: strip spaces and uppercase abbreviations
+    df_meta["Abbr."] = df_meta["Abbr."].str.strip().str.upper()
+
+    row = df_meta[df_meta["Abbr."] == sc]
+    if row.empty:
+        print(f"⚠ Station {sc} not found in metadata; no lat/long will be added.")
+        return None, None
+
+    lat_str = row["Latitude"].iloc[0]
+    lon_str = row["Longitude"].iloc[0]
+
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+        return lat, lon
+    except Exception:
+        print(f"⚠ Failed to parse lat/lon for station {sc} (values: {lat_str}, {lon_str}).")
+        return None, None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Transform (rename columns using MeteoSwiss metadata)
+# ──────────────────────────────────────────────────────────────────────────────
+def rename_data_columns_meteoswiss_metadata(df_data: pd.DataFrame,
+                                            param_map_full: Dict[str, str]) -> pd.DataFrame:
     present_map = {c: param_map_full[c] for c in df_data.columns if c in param_map_full}
-    # clean names
     present_map = {k: clean_name(v) for k, v in present_map.items()}
-    # apply renaming
     return df_data.rename(columns=present_map)
 
+
 # ──────────────────────────────────────────────────────────────────────────────
-# Shaping to your API schema
+# Transform (Biosense renaming)
 # ──────────────────────────────────────────────────────────────────────────────
-def detect_columns(df: pd.DataFrame):
+def rename_biosense(df: pd.DataFrame) -> pd.DataFrame:
+    column_map = {
+        "air-temperature_celsius": "air_temperature_2_m_above_ground",
+        "air-pressure_mbar": "atmospheric_pressure_at_barometric_altitude_qfe",
+        "air-humidity_percent": "relative_air_humidity_2_m_above_ground",
+        "vapor-pressure_mbar": "vapour_pressure_2_m_above_ground",
+        "wind-speed_m_s": "wind_speed_scalar",
+        "wind-direction_angle": "wind_direction",
+        "wind-gust_m_s": "gust_peak_one_second",
+        "gust-peak_m_s": "gust_peak_three_seconds",
+        "solar-radiation_w_m2": "global_radiation",
+        "precipitation_mm": "precipitation",
+        "dew-point_celsius": "dew_point_2_m_above_ground",
+    }
+
+    valid_map = {new: old for new, old in column_map.items() if old in df.columns}
+
+    # Keep timestamp + selected variables
+    cols_to_keep = ["reference_timestamp"] + list(valid_map.values())
+
+    df_biosense = df[cols_to_keep].rename(columns={old: new for new, old in valid_map.items()})
+    return df_biosense
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# API record building
+# ──────────────────────────────────────────────────────────────────────────────
+def make_records(
+    df: pd.DataFrame,
+    station_code: str,
+    lat: float | None = None,
+    lon: float | None = None
+) -> List[dict]:
     """
-    Heuristically find time and station columns common in SMN files.
-    Adjust this if your file uses different headers.
+    Convert dataframe into API-ready records.
+    - timestamp = reference_timestamp
+    - key       = station_code argument
+    - latitude_4326 / longitude_4326 are constant per station (if available).
     """
-    time_candidates = ["time", "date", "timestamp", "mes_ts_utc", "datetime"]
-    station_candidates = ["station", "stn", "nat_abbr", "stationcode", "smn_id"]
+    station_key = station_code.upper()
+    records: List[dict] = []
 
-    time_col = next((c for c in time_candidates if c in df.columns), None)
-    stn_col  = next((c for c in station_candidates if c in df.columns), None)
-
-    if time_col is None:
-        raise ValueError("Could not find a time column. Please set time_col explicitly.")
-    if stn_col is None:
-        # If there is no per-station column (single-station file), fallback to a constant key
-        stn_col = None
-
-    return time_col, stn_col
-
-
-def make_records(df: pd.DataFrame, time_col: str = None, stn_col: str = None) -> list[dict]:
-    # if explicit, use them, otherwise detect
-    if time_col is None or (stn_col is None and stn_col != ""):
-        time_col, stn_col = detect_columns(df, time_col, stn_col)
-
-    exclude = {time_col}
-    if stn_col:
-        exclude.add(stn_col)
-
-    DEFAULT_KEY = "SMN_UNSPECIFIED"
-    records = []
     for _, row in df.iterrows():
-        # timestamp
-        raw = row[time_col]
+        raw_ts = row["reference_timestamp"]
+
         try:
-            ts = pd.to_datetime(raw, utc=False).strftime("%Y-%m-%dT%H:%M:%S")
+            ts = pd.to_datetime(raw_ts).strftime("%Y-%m-%dT%H:%M:%S")
         except Exception:
-            ts = str(raw)
+            ts = str(raw_ts)
 
-        key = str(row[stn_col]) if stn_col else DEFAULT_KEY
+        payload: dict = {}
 
-        payload = {}
         for c in df.columns:
-            if c in exclude:
+            if c == "reference_timestamp":
                 continue
-            v = row[c]
             try:
-                fv = float(v)
+                fv = float(row[c])
                 if pd.notna(fv):
                     payload[c] = fv
             except Exception:
+                # non-numerical or missing -> skip
                 pass
 
-        rec = {"key": key, "timestamp": ts}
-        rec.update(payload)
-        records.append(rec)
+        # Add static station coordinates if available
+        if lat is not None:
+            payload["latitude_4326"] = float(lat)
+        if lon is not None:
+            payload["longitude_4326"] = float(lon)
+
+        records.append({
+            "key": station_key,
+            "timestamp": ts,
+            **payload,
+        })
 
     return records
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Upload (time-series)
-# ──────────────────────────────────────────────────────────────────────────────
-def send_data(project_id: str, collection_id: str, write_key: str, data: List[dict]) -> bool:
-    url = f"{BASE_URL}/projects/{project_id}/collections/{collection_id}/send_data"
-    headers = {"X-API-Key": write_key}
-    resp = requests.post(url, json=data, headers=headers, timeout=60)
-    if resp.status_code == 200:
-        print(f"✅ Sent {len(data)} records")
-        return True
-    print(f"❌ Failed to send data ({resp.status_code}): {resp.text}")
-    return False
 
-# Optional: if you actually need to create the collection programmatically once.
 def create_collection(project_id: str, master_key: str, example_record: dict):
     url = f"{BASE_URL}/projects/{project_id}/collections"
     headers = {"X-API-Key": master_key}
-    schema_example = {k: example_record[k] for k in list(example_record.keys())[:15]}  # trim if huge
+    schema_example = {k: example_record[k] for k in list(example_record.keys())[:15]}
     payload = {
         "name": "meteoswiss_tenmin",
         "description": "MeteoSwiss SMN ten-minute data",
         "tags": ["meteoswiss", "weather", "smn", "tenmin"],
-        "collection_schema": schema_example
+        "collection_schema": schema_example,
     }
     r = requests.post(url, json=payload, headers=headers, verify=False, timeout=30)
     print("Create collection:", r.status_code, r.text)
-    return r.json() if r.ok else None
+    if r.ok:
+        data = r.json()
+        print("Collection ID:", data.get("id"))   # or whatever field your API uses
+        return data
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Send data
+# ──────────────────────────────────────────────────────────────────────────────
+def send_data(project_id: str, collection_id: str, write_key: str, data: List[dict]) -> bool:
+    url = f"{BASE_URL}/projects/{project_id}/collections/{collection_id}/send_data"
+    headers = {"X-API-Key": write_key}
+    try:
+        resp = requests.post(url, json=data, headers=headers, timeout=60, verify=False)
+    except requests.exceptions.SSLError as e:
+        print(f"❌ SSL error while sending data: {e}")
+        return False
+
+    if resp.status_code == 200:
+        print(f"✅ Sent {len(data)} records")
+        return True
+
+    print(f"❌ Failed sending data ({resp.status_code}): {resp.text}")
+    return False
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────────────────────
-def main():
-    # 1) Download data
-    df_data = download_csv(URL_DATA)
+def main(station_code: str):
+    station_code = station_code.lower().strip()
 
-    # 2) Load parameter dictionary (latin1) and build full map
-    df_meta = pd.read_csv(PARAM_FILE, sep=";", encoding="latin1", dtype=str)
-    param_map = build_param_map_from_df(df_meta)
+    # Build station-specific URL, e.g. tae -> ogd-smn_tae_t_recent.csv
+    url_data = (
+        f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/"
+        f"{station_code}/ogd-smn_{station_code}_t_recent.csv"
+    )
 
-    # 3) Rename columns to clean snake_case English
-    df_named = rename_data_columns(df_data, param_map)
+    print(f"Downloading: {url_data}")
 
-    # 4) Build records for the API
-    records = make_records(df_named, time_col = 'reference_timestamp')
-    if not records:
-        print("No records to send (after filtering).")
+    # 1) Download raw data
+    df_data = download_csv(url_data)
+
+    # 2) Parse reference_timestamp
+    df_data["reference_timestamp"] = pd.to_datetime(
+        df_data["reference_timestamp"], format="%d.%m.%Y %H:%M"
+    )
+
+    yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+    df_yesterday = df_data[df_data["reference_timestamp"].dt.date == yesterday]
+
+    if df_yesterday.empty:
+        print(f"⚠ No data for {station_code.upper()} on {yesterday}")
         return
 
-    # 5) (Optional) Create collection once (commented out after first run)
-    # create_collection(PROJECT_ID, MASTER_KEY, records[0])
+    # 3) Load metadata + rename columns
+    df_param = pd.read_csv(PARAM_FILE, sep=";", encoding="latin1", dtype=str)
+    param_map = build_param_map_from_df(df_param)
 
-    # 6) Send data
+    df_named = rename_data_columns_meteoswiss_metadata(df_yesterday, param_map)
+
+    # Ensure logs directory exists
+    os.makedirs("logs", exist_ok=True)
+    df_named.to_csv(f"logs/meteoswiss_{station_code}_{yesterday}.csv", index=False)
+
+    # 4) Biosense naming
+    df_biosense = rename_biosense(df_named)
+
+    # 5) Station coordinates
+    lat, lon = get_station_lat_lon(station_code)
+
+    # 6) Convert to API records
+    records = make_records(df_biosense, station_code, lat=lat, lon=lon)
+
+    if not records:
+        print("No records to send.")
+        return
+
+    # 7) Send data
     send_data(PROJECT_ID, COLLECTION_ID, WRITE_KEY, records)
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CLI entry point
+# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Download and push MeteoSwiss data for a single SMN station."
+    )
+    parser.add_argument(
+        "station_code",
+        type=str,
+        help="Station code (e.g. tae, aro, rag, ban). Please check ./config/ch.meteoschweiz.messnetz-automatisch_en.csv for valid codes."
+    )
+
+    args = parser.parse_args()
+    main(args.station_code)
