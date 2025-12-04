@@ -271,6 +271,75 @@ def main(station_code: str):
     send_data(PROJECT_ID, COLLECTION_ID, WRITE_KEY, records)
 
 
+def process_historical_station(station_code: str):
+    """
+    Process all available historical hourly files for the given station:
+    1980-1989, 1990-1999, 2000-2009, 2010-2019, 2020-2029.
+    """
+    station_code = station_code.lower().strip()
+    periods = [
+        "1980-1989",
+        "1990-1999",
+        "2000-2009",
+        "2010-2019",
+        "2020-2029",
+    ]
+
+    # Load parameter metadata once
+    df_param = pd.read_csv(PARAM_FILE, sep=";", encoding="latin1", dtype=str)
+    param_map = build_param_map_from_df(df_param)
+
+    # Get station coordinates once
+    lat, lon = get_station_lat_lon(station_code)
+
+    for period in periods:
+        url_data = (
+            f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/"
+            f"{station_code}/ogd-smn_{station_code}_h_historical_{period}.csv"
+        )
+
+        print(f"Downloading historical {period}: {url_data}")
+
+        try:
+            df_data = download_csv(url_data)
+        except Exception as e:
+            print(f"⚠ Failed to download {url_data}: {e}")
+            continue
+
+        # Parse timestamps (same format as recent)
+        try:
+            df_data["reference_timestamp"] = pd.to_datetime(
+                df_data["reference_timestamp"], format="%d.%m.%Y %H:%M"
+            )
+        except Exception as e:
+            print(f"⚠ Failed to parse timestamps for {period}: {e}")
+            continue
+
+        # Rename using MeteoSwiss metadata
+        df_named = rename_data_columns_meteoswiss_metadata(df_data, param_map)
+
+        # Save for inspection
+        os.makedirs("logs", exist_ok=True)
+        df_named.to_csv(
+            f"logs/meteoswiss_{station_code}_historical_{period}.csv",
+            index=False,
+        )
+
+        # Biosense naming
+        df_biosense = rename_biosense(df_named)
+
+        # Build records (with lat/lon)
+        records = make_records(df_biosense, station_code, lat=lat, lon=lon)
+
+        if not records:
+            print(f"⚠ No records to send for {station_code.upper()} {period}")
+            continue
+
+        # Send everything for this period
+        print(f"Sending {len(records)} records for {station_code.upper()} {period}")
+        send_data(PROJECT_ID, COLLECTION_ID, WRITE_KEY, records)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI entry point
 # ──────────────────────────────────────────────────────────────────────────────
@@ -281,8 +350,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "station_code",
         type=str,
-        help="Station code (e.g. tae, aro, rag, ban). Please check ./config/ch.meteoschweiz.messnetz-automatisch_en.csv for valid codes."
+        help=(
+            "Station code (e.g. tae, aro, rag, ban). "
+            "Please check ./config/ch.meteoschweiz.messnetz-automatisch_en.csv for valid codes."
+        ),
+    )
+    parser.add_argument(
+        "--historical",
+        action="store_true",
+        help="If set, process historical hourly data (1980-2029) instead of only yesterday's recent file.",
     )
 
     args = parser.parse_args()
-    main(args.station_code)
+
+    if args.historical:
+        process_historical_station(args.station_code)
+    else:
+        main(args.station_code)

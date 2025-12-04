@@ -44,21 +44,19 @@ uv sync
 ```
 
 ### 2. Ingest Historical Data
-uv run get_and_ingest_historical_data_hourly.py --station <station_code>
+uv run python ingest_hourly_data.py <station_code>
 
-### 3. Verify Ingestion
-uv run verify_historical_data_hourly.py --station <station_code>
 
 ## ⏰ Setting Up the Daily Crontab
 
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
-1 0 * * * cd /path/to/project && uv run ingest_daily_data_hourly.py --station <station_code> >> /var/log/nostradamus_ingest.log 2>&1
+1 0 * * * cd /path/to/project && uv run python ingest_hourly_data.py <station_code>
 
 Example for Multiple Stations
-1 0 * * * uv run ingest_daily_data_hourly.py --station STATION1
-3 0 * * * uv run ingest_daily_data_hourly.py --station STATION2
-5 0 * * * uv run ingest_daily_data_hourly.py --station STATION3
+1 0 * * * uv run python ingest_hourly_data.py <station_code>
+3 0 * * * uv run python ingest_hourly_data.py <station_code>
+5 0 * * * uv run python ingest_hourly_data.py <station_code>
 
 ## 🌡️ Meteorological Variables & Units
 
@@ -83,13 +81,10 @@ project/
 ├── config/
 │   ├── settings.toml
 │   ├── secrets.toml
-├── modules/
-│   ├── ingestion.py
-│   ├── meteo_fetcher.py
-│   ├── utils.py
+│   ├── ogd-smn_meta_parameters.csv
+│   ├── ch.meteoschweiz.messnetz-automatisch_en.csv
 ├── logs/
-│   ├── ingestion.log
-│   ├── verification.log
+│   ├── some_csv.log
 └── README.md
 
 ## 🔐 Environment Variables & Secrets
