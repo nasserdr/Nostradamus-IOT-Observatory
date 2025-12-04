@@ -73,6 +73,7 @@ Example for Multiple Stations
 
 
 ## 📁 Folder Structure Overview
+```
 project/
 ├── scripts/
 │   ├── get_and_ingest_historical_data_hourly.py
@@ -86,16 +87,17 @@ project/
 ├── logs/
 │   ├── some_csv.log
 └── README.md
+```
 
 ## 🔐 Environment Variables & Secrets
 Configure the configs.json file as shown below:
 ```
 {
-    "PROJECT_ID": "161854af-716b-49e8-bc55-cd975699db54",
-    "BASE_URL": "https://nostradamus-ioto.issel.ee.auth.gr/api/v1",
-    "master": "4c2e33648ea207d68e2421f5bf17849900abb2b9f540eeffb56b3514edd5fd56",
-    "read": "7cd6fa2146c27733efba64d084b5da6f8c10de562a52fdacecd6a07be532e00f",
-    "write": "74b5b8d39b519a4b40d8f683028a5e400193ae0cfe6c51a1cd266e177283d840"
+    "PROJECT_ID": <PROJECT_ID>,
+    "BASE_URL": <BASE_URL>,
+    "master": <MASTER_KEY>,
+    "read": <READ_KEY>,
+    "write": <WRITE_KEY>
 }
 ```
 
