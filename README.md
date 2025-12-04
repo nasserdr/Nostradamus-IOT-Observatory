@@ -51,13 +51,16 @@ uv run python ingest_hourly_data.py <station_code>
 
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
+```
 1 0 * * * cd /path/to/project && uv run python ingest_hourly_data.py <station_code>
+```
 
 Example for Multiple Stations
+```
 1 0 * * * uv run python ingest_hourly_data.py <station_code>
 3 0 * * * uv run python ingest_hourly_data.py <station_code>
 5 0 * * * uv run python ingest_hourly_data.py <station_code>
-
+```
 ## 🌡️ Meteorological Variables & Units
 
 | Variable Name        | Description           | Unit   | Example |
