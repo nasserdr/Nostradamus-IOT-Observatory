@@ -85,58 +85,42 @@ def detect_columns(df: pd.DataFrame):
     return time_col, stn_col
 
 
-def make_records(df: pd.DataFrame) -> List[dict]:
-    """
-    Turn each row into a record with:
-      key: station id (or a constant if not available)
-      timestamp: ISO string (no timezone suffix assumed to be UTC)
-      metrics: remaining numeric columns in the row
-    """
-    time_col, stn_col = detect_columns(df)
+def make_records(df: pd.DataFrame, time_col: str = None, stn_col: str = None) -> list[dict]:
+    # if explicit, use them, otherwise detect
+    if time_col is None or (stn_col is None and stn_col != ""):
+        time_col, stn_col = detect_columns(df, time_col, stn_col)
 
-    # Columns we don't want inside metrics:
     exclude = {time_col}
     if stn_col:
         exclude.add(stn_col)
 
-    # Choose a default key if no station column
     DEFAULT_KEY = "SMN_UNSPECIFIED"
-
     records = []
     for _, row in df.iterrows():
         # timestamp
-        ts_val = row[time_col]
-        # try to standardize timestamp
+        raw = row[time_col]
         try:
-            ts = pd.to_datetime(ts_val, utc=False).strftime("%Y-%m-%dT%H:%M:%S")
+            ts = pd.to_datetime(raw, utc=False).strftime("%Y-%m-%dT%H:%M:%S")
         except Exception:
-            ts = str(ts_val)
+            ts = str(raw)
 
-        # key
         key = str(row[stn_col]) if stn_col else DEFAULT_KEY
 
-        # metrics: numeric-like columns except excluded
         payload = {}
         for c in df.columns:
             if c in exclude:
                 continue
-            val = row[c]
-            # keep only finite numeric or leave as None if not parseable
-            if pd.api.types.is_number(val):
-                payload[c] = float(val)
-            else:
-                # try parse to float
-                try:
-                    fv = float(val)
-                    if pd.notna(fv):
-                        payload[c] = fv
-                except Exception:
-                    # drop non-numeric values silently
-                    pass
+            v = row[c]
+            try:
+                fv = float(v)
+                if pd.notna(fv):
+                    payload[c] = fv
+            except Exception:
+                pass
 
-        record = {"key": key, "timestamp": ts}
-        record.update(payload)
-        records.append(record)
+        rec = {"key": key, "timestamp": ts}
+        rec.update(payload)
+        records.append(rec)
 
     return records
 
