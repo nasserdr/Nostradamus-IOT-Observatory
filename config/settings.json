@@ -1,5 +1,5 @@
 {
-    "PROJECT_ID": "161854af-716b-49e8-bc55-cd975699db54",
-    "BASE_URL": "https://nostradamus-ioto.issel.ee.auth.gr/api/v1",
-    "COLLECTION_ID": "abcdefabcdefabcdefabcdefabcdefab"
+  "PROJECT_ID": "161854af-716b-49e8-bc55-cd975699db54",
+  "BASE_URL": "https://nostradamus-ioto.issel.ee.auth.gr/api/v1",
+  "collection_id_tae": "4306c9a6-7f1e-4904-8087-3e47101c77bd"
 }
