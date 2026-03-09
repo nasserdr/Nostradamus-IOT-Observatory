@@ -6,12 +6,8 @@ from typing import Any
 
 import requests
 
-_BASE_DIR = Path(__file__).resolve().parent
-_SECRETS_PATH = _BASE_DIR.parent / "config" / "secrets.json"
-_SETTINGS_PATH = _BASE_DIR.parent / "config" / "settings.json"
-REQUEST_TIMEOUT = 30
-VERIFY_SSL = False  # change to True for proper TLS validation
-_config_cache: dict[str, Any] | None = None
+DEFAULT_REQUEST_TIMEOUT = 30
+DEFAULT_VERIFY_SSL = True
 
 
 def _as_bool(value: Any, default: bool) -> bool:
@@ -59,13 +55,15 @@ def load_config(secrets_path: Path | None = None,
     
     Returns:
         Dictionary with keys: project_id, base_url, master_key, write_key,
-        read_key, request_timeout, verify_ssl, collection_id_tae
+        read_key, request_timeout, verify_ssl
     """
     if secrets_path is None:
-        secrets_path = _SECRETS_PATH
+        print("No secrets_path provided")
+        raise ValueError("secrets_path is required")
     if settings_path is None:
-        settings_path = _SETTINGS_PATH
-    
+        print("No settings_path provided")
+        raise ValueError("settings_path is required")
+
     secrets = _load_json_file(secrets_path, "secrets")
     cfg = _load_json_file(settings_path, "settings")
     
@@ -75,29 +73,22 @@ def load_config(secrets_path: Path | None = None,
         "master_key": secrets.get("master"),
         "write_key": secrets.get("write"),
         "read_key": secrets.get("read"),
-        "request_timeout": _as_int(cfg.get("REQUEST_TIMEOUT"), REQUEST_TIMEOUT),
-        "verify_ssl": _as_bool(cfg.get("VERIFY_SSL"), VERIFY_SSL),
-        "collection_id_tae": cfg.get("collection_id_tae", cfg.get("COLLECTION_ID", "")),
+        "request_timeout": _as_int(cfg.get("REQUEST_TIMEOUT"), DEFAULT_REQUEST_TIMEOUT),
+        "verify_ssl": _as_bool(cfg.get("VERIFY_SSL"), DEFAULT_VERIFY_SSL)
     }
-
-
-def _get_cached_config() -> dict[str, Any]:
-    """Get cached config, loading from files once if needed."""
-    global _config_cache
-    if _config_cache is None:
-        _config_cache = load_config()
-    return _config_cache
 
 
 def _request(method: str,
              url: str,
+             timeout: int,
+             verify_ssl: bool,
              **kwargs) -> requests.Response | None:
     try:
         return requests.request(
             method=method,
             url=url,
-            timeout=REQUEST_TIMEOUT,
-            verify=VERIFY_SSL,
+            timeout=timeout,
+            verify=verify_ssl,
             **kwargs,
         )
     except requests.RequestException as exc:
@@ -125,30 +116,88 @@ def validate_config(project_id: str, base_url: str) -> bool:
     return True
 
 
+def get_collection_id_from_station_code(
+    station_code: str,
+    project_id: str,
+    api_key: str,
+    base_url: str,
+    timeout: int = DEFAULT_REQUEST_TIMEOUT,
+    verify_ssl: bool = DEFAULT_VERIFY_SSL,
+) -> str:
+    """
+    Get collection ID for a station code by searching available collections.
+
+    Args:
+        station_code: Station code to search for (e.g., 'TAE', 'tae')
+        project_id: Project ID
+        api_key: API key for authentication
+        base_url: Base URL
+        timeout: Request timeout in seconds
+        verify_ssl: Whether to verify SSL certificates
+
+    Returns:
+        Collection ID matching the station code
+
+    Raises:
+        RuntimeError: If no collection found for the station code
+    """
+    collections = list_collections(
+        project_id=project_id,
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+    )
+
+    if not collections:
+        raise RuntimeError(
+            f"No collections found for project {project_id}. "
+            f"Please first create a collection for that project."
+        )
+
+    station_code_upper = station_code.upper()
+
+    for col in collections:
+        collection_name = col.get("collection_name", "").upper()
+        collection_id = col.get("collection_id")
+
+        # Match by collection name containing station code
+        if station_code_upper in collection_name and collection_id:
+            return collection_id
+
+    # If no match found
+    raise RuntimeError(
+        f"No collection found for station code '{station_code}'. "
+        f"Please first create a collection for '{station_code}'."
+    )
+
+
 def list_collections(project_id: str | None = None,
                      api_key: str | None = None,
-                     base_url: str | None = None):
+                     base_url: str | None = None,
+                     timeout: int = DEFAULT_REQUEST_TIMEOUT,
+                     verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """List collections for a project.
     
     Args:
-        project_id: Project ID (defaults to PROJECT_ID from config)
-        api_key: API key for authentication (defaults to master key from config)
-        base_url: Base URL (defaults to BASE_URL from config)
+        project_id: Project ID
+        api_key: API key for authentication
+        base_url: Base URL
     """
-    if project_id is None or api_key is None or base_url is None:
-        config = _get_cached_config()
-        project_id = project_id or config.get("project_id", "")
-        api_key = api_key or config.get("master_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for listing collections")
+        return None
     if not api_key:
         print("Missing API key for listing collections")
+        return None
+    if not base_url:
+        print("Missing base_url for listing collections")
         return None
 
     url = f"{base_url}/projects/{project_id}/collections"
     headers = {"X-API-Key": api_key}
 
-    response = _request("GET", url, headers=headers)
+    response = _request("GET", url, timeout=timeout, verify_ssl=verify_ssl, headers=headers)
     if response is None:
         return None
 
@@ -172,28 +221,34 @@ def list_collections(project_id: str | None = None,
 def delete_collection(project_id: str,
                       collection_id: str,
                       api_key: str | None = None,
-                      base_url: str | None = None):
+                      base_url: str | None = None,
+                      timeout: int = DEFAULT_REQUEST_TIMEOUT,
+                      verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """Delete an entire collection.
     
     Args:
         project_id: Project ID
         collection_id: Collection ID to delete
-        api_key: Master API key (defaults to master key from config)
-        base_url: Base URL (defaults to BASE_URL from config)
+        api_key: Master API key
+        base_url: Base URL
     """
-    if api_key is None or base_url is None:
-        config = _get_cached_config()
-        api_key = api_key or config.get("master_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for deleting collection")
+        return None
+    if not collection_id:
+        print("Missing collection_id for deleting collection")
+        return None
     if not api_key:
         print("Missing API key for deleting collection")
+        return None
+    if not base_url:
+        print("Missing base_url for deleting collection")
         return None
 
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}"
     headers = {"X-API-Key": api_key}
 
-    response = _request("DELETE", url, headers=headers)
+    response = _request("DELETE", url, timeout=timeout, verify_ssl=verify_ssl, headers=headers)
     if response is None:
         return None
 
@@ -218,31 +273,44 @@ def send_data(project_id: str,
               collection_id: str,
               write_key: str | None = None,
               data: list[dict] | None = None,
-              base_url: str | None = None):
+              base_url: str | None = None,
+              timeout: int = DEFAULT_REQUEST_TIMEOUT,
+              verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """Send data (list of records) to a collection.
     
     Args:
         project_id: Project ID
         collection_id: Collection ID
-        write_key: Write API key (defaults to write key from config)
+        write_key: Write API key
         data: List of records to send
-        base_url: Base URL (defaults to BASE_URL from config)
+        base_url: Base URL
     """
     if data is None:
         data = []
-    if write_key is None or base_url is None:
-        config = _get_cached_config()
-        write_key = write_key or config.get("write_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for send_data")
+        return False
+    if not collection_id:
+        print("Missing collection_id for send_data")
+        return False
     if not write_key:
         print("Missing write key for send_data")
+        return False
+    if not base_url:
+        print("Missing base_url for send_data")
         return False
 
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}/send_data"
     headers = {"X-API-Key": write_key}
 
-    response = _request("POST", url, json=data, headers=headers)
+    response = _request(
+        "POST",
+        url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+        json=data,
+        headers=headers,
+    )
     if response is None:
         return False
 
@@ -260,25 +328,31 @@ def delete_data(project_id: str,
                 key: str | None = None,
                 timestamp_from: str | None = None,
                 timestamp_to: str | None = None,
-                base_url: str | None = None):
+                base_url: str | None = None,
+                timeout: int = DEFAULT_REQUEST_TIMEOUT,
+                verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """Delete data from a collection based on criteria.
     
     Args:
         project_id: Project ID
         collection_id: Collection ID
-        api_key: Master API key (defaults to master key from config)
+        api_key: Master API key
         key: Filter by key
         timestamp_from: Delete data from this timestamp
         timestamp_to: Delete data until this timestamp
-        base_url: Base URL (defaults to BASE_URL from config)
+        base_url: Base URL
     """
-    if api_key is None or base_url is None:
-        config = _get_cached_config()
-        api_key = api_key or config.get("master_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for delete_data")
+        return None
+    if not collection_id:
+        print("Missing collection_id for delete_data")
+        return None
     if not api_key:
         print("Missing API key for delete_data")
+        return None
+    if not base_url:
+        print("Missing base_url for delete_data")
         return None
 
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}/delete_data"
@@ -292,7 +366,14 @@ def delete_data(project_id: str,
     if timestamp_to:
         delete_request["timestamp_to"] = timestamp_to
 
-    response = _request("DELETE", url, json=delete_request, headers=headers)
+    response = _request(
+        "DELETE",
+        url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+        json=delete_request,
+        headers=headers,
+    )
     if response is None:
         return None
 
@@ -314,26 +395,32 @@ def get_data(project_id: str,
              attributes: list[str] | None = None,
              limit: int | None = None,
              order_by: str | None = None,
-             base_url: str | None = None):
+             base_url: str | None = None,
+             timeout: int = DEFAULT_REQUEST_TIMEOUT,
+             verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """Get data from collection with optional filters.
     
     Args:
         project_id: Project ID
         collection_id: Collection ID
-        read_key: Read API key (defaults to read key from config)
+        read_key: Read API key
         filters: Optional filter list
         attributes: Optional attribute list
         limit: Limit number of results
         order_by: Order results by this attribute
-        base_url: Base URL (defaults to BASE_URL from config)
+        base_url: Base URL
     """
-    if read_key is None or base_url is None:
-        config = _get_cached_config()
-        read_key = read_key or config.get("read_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for get_data")
+        return []
+    if not collection_id:
+        print("Missing collection_id for get_data")
+        return []
     if not read_key:
         print("Missing read key for get_data")
+        return []
+    if not base_url:
+        print("Missing base_url for get_data")
         return []
 
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}/get_data"
@@ -350,7 +437,14 @@ def get_data(project_id: str,
     if filters:
         params["filters"] = json.dumps(filters)
 
-    response = _request("GET", url, headers=headers, params=params)
+    response = _request(
+        "GET",
+        url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+        headers=headers,
+        params=params,
+    )
     if response is None:
         return []
 
@@ -372,27 +466,33 @@ def get_statistics(project_id: str,
                    filters: list[dict] | None = None,
                    order: str = "asc",
                    interval: str = "every_24_hours",
-                   base_url: str | None = None):
+                   base_url: str | None = None,
+                   timeout: int = DEFAULT_REQUEST_TIMEOUT,
+                   verify_ssl: bool = DEFAULT_VERIFY_SSL):
     """Get statistics for an attribute.
     
     Args:
         project_id: Project ID
         collection_id: Collection ID
-        read_key: Read API key (defaults to read key from config)
+        read_key: Read API key
         attribute: Attribute name
         stat: Statistic type (avg, min, max, sum, count, distinct, ...)
         filters: Optional filter list
         order: Order direction (asc/desc)
         interval: Time interval (every_24_hours, ...)
-        base_url: Base URL (defaults to BASE_URL from config)
+        base_url: Base URL
     """
-    if read_key is None or base_url is None:
-        config = _get_cached_config()
-        read_key = read_key or config.get("read_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for get_statistics")
+        return {}
+    if not collection_id:
+        print("Missing collection_id for get_statistics")
+        return {}
     if not read_key:
         print("Missing read key for get_statistics")
+        return {}
+    if not base_url:
+        print("Missing base_url for get_statistics")
         return {}
 
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}/statistics"
@@ -408,7 +508,14 @@ def get_statistics(project_id: str,
     if filters:
         params["filters"] = json.dumps(filters)
 
-    response = _request("GET", url, headers=headers, params=params)
+    response = _request(
+        "GET",
+        url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+        headers=headers,
+        params=params,
+    )
     if response is None:
         return {}
 
@@ -466,26 +573,29 @@ def create_collection(
     description: str = "",
     tags: list[str] | None = None,
     schema: dict | None = None,
-    base_url: str | None = None
+    base_url: str | None = None,
+    timeout: int = DEFAULT_REQUEST_TIMEOUT,
+    verify_ssl: bool = DEFAULT_VERIFY_SSL,
 ):
     """Create a new collection in a project.
     
     Args:
         project_id: Project ID
-        master_key: Master API key (defaults to master key from config)
+        master_key: Master API key
         name: Collection name visible in dashboard
         description: Collection description
         tags: List of metadata tags
         schema: Dictionary describing the collection schema
-        base_url: Base URL (defaults to BASE_URL from config)
+        base_url: Base URL
     """
-    if master_key is None or base_url is None:
-        config = _get_cached_config()
-        master_key = master_key or config.get("master_key")
-        base_url = base_url or config.get("base_url", "")
-    
+    if not project_id:
+        print("Missing project_id for create_collection")
+        return None
     if not master_key:
         print("Missing master key for create_collection")
+        return None
+    if not base_url:
+        print("Missing base_url for create_collection")
         return None
 
     url = f"{base_url}/projects/{project_id}/collections"
@@ -498,7 +608,14 @@ def create_collection(
         "collection_schema": schema or {},
     }
 
-    response = _request("POST", url, json=payload, headers=headers)
+    response = _request(
+        "POST",
+        url,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+        json=payload,
+        headers=headers,
+    )
     if response is None:
         return None
 
