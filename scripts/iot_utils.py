@@ -154,7 +154,7 @@ def get_collection_id_from_station_code(
             f"No collections found for project {project_id}. "
             f"Please first create a collection for that project."
         )
-
+    station_code = "meteoswiss_" + station_code
     station_code_upper = station_code.upper()
 
     for col in collections:
