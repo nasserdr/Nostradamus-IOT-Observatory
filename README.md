@@ -22,8 +22,9 @@ The ingestion workflow has two components:
 
 Use this toolkit when:
 
-### ✔️ 1. Re-ingesting Data for a Station
+### ✔️ 1. Ingesting Data for a Station
 Useful for:
+- Daily data updating
 - Infrastructure migration  
 - Data corruption or loss  
 - Failed historical ingestion  
