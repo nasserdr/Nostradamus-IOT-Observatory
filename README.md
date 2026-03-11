@@ -73,7 +73,7 @@ Historical mode:
 python .\scripts\ingest_data.py <station_code> --historical
 ```
 
-Historical model from a date:
+Historical mode from a date:
 ```bash
 python .\scripts\ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
 ```
