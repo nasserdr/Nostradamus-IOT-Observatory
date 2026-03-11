@@ -8,6 +8,7 @@ import requests
 
 DEFAULT_REQUEST_TIMEOUT = 30
 DEFAULT_VERIFY_SSL = True
+MAX_SEND_DATA_BATCH_SIZE = 2000
 
 
 def _as_bool(value: Any, default: bool) -> bool:
@@ -214,8 +215,7 @@ def list_collections(project_id: str | None = None,
             )
         return collections
     else:
-        print("Failed to list collections:", response.text)
-        return None
+        raise RuntimeError(f"Failed to list collections: {response.text}")
 
 
 def delete_collection(project_id: str,
@@ -303,23 +303,39 @@ def send_data(project_id: str,
     url = f"{base_url}/projects/{project_id}/collections/{collection_id}/send_data"
     headers = {"X-API-Key": write_key}
 
-    response = _request(
-        "POST",
-        url,
-        timeout=timeout,
-        verify_ssl=verify_ssl,
-        json=data,
-        headers=headers,
-    )
-    if response is None:
-        return False
-
-    if response.status_code == 200:
-        print(f"✅ Sent {len(data)} records")
+    if not data:
+        print("No records to send.")
         return True
-    else:
-        print(f"Failed to send data: {response.text}")
-        return False
+
+    total_records = len(data)
+    sent_records = 0
+
+    for start in range(0, total_records, MAX_SEND_DATA_BATCH_SIZE):
+        end = min(start + MAX_SEND_DATA_BATCH_SIZE, total_records)
+        batch = data[start:end]
+
+        response = _request(
+            "POST",
+            url,
+            timeout=timeout,
+            verify_ssl=verify_ssl,
+            json=batch,
+            headers=headers,
+        )
+        if response is None:
+            return False
+
+        if response.status_code == 200:
+            sent_records += len(batch)
+            print(
+                f"✅ Sent batch {start // MAX_SEND_DATA_BATCH_SIZE + 1}: "
+                f"{len(batch)} records ({sent_records}/{total_records})"
+            )
+        else:
+            print(f"Failed to send data: {response.text}")
+            return False
+
+    return True
 
 
 def delete_data(project_id: str,

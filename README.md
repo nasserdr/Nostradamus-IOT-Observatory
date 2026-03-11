@@ -7,13 +7,13 @@ This repository contains the codebase responsible for **ingesting Swiss MeteoSwi
 
 The ingestion workflow has two components:
 
-### 1️⃣ Historical Backfill (One-Time Per Station)
+### 1️⃣ Historical Backfill
 - Fetch all available historical MeteoSwiss *hourly* data.
-- Retrieve everything up to **yesterday**.
+- Retrieve everything up to **yesterday** or from **from_date (YYYY-MM-DD)** up to **yesterday**.
 - Upload the full dataset in bulk to the Observatory.
 
 ### 2️⃣ Daily Incremental Updates (Automated)
-- A daily **crontab job** fetches the last 24 hours of data.
+- A daily **crontab job** fetches the data from yesterday.
 - Ensures continuous synchronization with MeteoSwiss.
 
 ---
@@ -31,36 +31,59 @@ Useful for:
 
 ### ✔️ 2. Adding a New MeteoSwiss Station
 - All stations are referenced via their **MeteoSwiss station codes**.  
-- **TODO:** Add station list link →  
-  https://www.meteoswiss.admin.ch/services-and-publications/portals-and-tools/station-finder.html
+- See the list of station codes in the file: config/meteoswiss_stations.csv or at [MeteoSwiss](https://www.meteoswiss.admin.ch/climate/the-climate-of-switzerland/records-and-extremes/extreme-value-analyses/background-information/station-information.html)
 
 ---
 
-## 🚀 How to Run the Historical Backfill
+## 🚀 Quickstart
 
-### 1. Install Dependencies
+### 1. Prerequisites
+- Python 3.11
+- uv (recommended package/environment manager)
+
+### 2. Clone and install dependencies
 ```bash
 uv sync
 ```
 
-### 2. Ingest Historical Data
-uv run python ingest_hourly_data.py <station_code>
+### 3. Configure settings and secrets
+Replace secrets.json fields with your keys:
+```bash
+{
+  "master": "your-master-key",
+  "read": "your-read-key",
+  "write": "your-write-key"
+}
+```
+### 4. Run ingestion
+Before ingesting weather data, one has to create a collection for <station_code>
+```bash
+uv run python ingest_data.py <station_code> --create-collection
+```
 
+Recent-only mode (yesterday only):
+```bash
+uv run python ingest_data.py <station_code>
+```
+
+Historical mode:
+```bash
+uv run python ingest_data.py <station_code> --historical
+```
+
+Historical model from a date:
+```bash
+uv run python ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
+```
 
 ## ⏰ Setting Up the Daily Crontab
 
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
-```
-1 0 * * * cd /path/to/project && uv run python ingest_hourly_data.py <station_code>
+```bash
+1 0 * * * cd /path/to/project && uv run python ingest_data.py <station_code>
 ```
 
-Example for Multiple Stations
-```
-1 0 * * * uv run python ingest_hourly_data.py <station_code>
-3 0 * * * uv run python ingest_hourly_data.py <station_code>
-5 0 * * * uv run python ingest_hourly_data.py <station_code>
-```
 ## 🌡️ Meteorological Variables & Units
 
 | Variable Name        | Description           | Unit   | Example |

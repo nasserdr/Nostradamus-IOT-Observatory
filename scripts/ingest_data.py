@@ -10,56 +10,75 @@ import urllib3
 import iot_utils
 import meteo_utils
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Config
-# ──────────────────────────────────────────────────────────────────────────────
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-def _runtime_config() -> dict:
-    """Load runtime configuration on demand."""
-    return iot_utils.load_config()
-
-PARAM_FILE = "config/ogd-smn_meta_parameters.csv"
-STATION_META_FILE = "config/ch.meteoschweiz.messnetz-automatisch_en.csv"
+STATION_META_PATH = "config/meteoswiss_stations.csv"
 
 DEFAULT_VERIFY_SSL = True
 DEFAULT_TIMEOUT = 30
+SECRETS_PATH = "config/secrets.json"
+SETTINGS_PATH = "config/settings.json"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Schema for the MeteoSwiss TAE collection  ### NEW
-# ──────────────────────────────────────────────────────────────────────────────
-weather_schema = {
-    "key": "TAE",                   # example station key
-    "timestamp": "2025-06-17T10:30:00Z",
-    "air-temperature_celsius": 15.2,
-    "air-pressure_mbar": 1012.3,
-    "air-humidity_percent": 62.5,
-    "vapor-pressure_mbar": 12.4,
-    "wind-speed_m_s": 3.4,
-    "wind-direction_angle": 225,
-    "wind-gust_m_s": 5.8,
-    "gust-peak_m_s": 7.2,
-    "solar-radiation_w_m2": 420.0,
-    "precipitation_mm": 0.0,
-    "dew-point_celsius": 7.8,
-    "latitude_4326": 46.953,
-    "longitude_4326": 7.435,
+WEATHER_SCHEMA = {
+    'key': 'TAE',
+    'timestamp': '2026-11-02T14:00:00',
+    'air-temperature_celsius': 9.1,
+    'air-temperature_celsius_5cm': 7.9,
+    'air-humidity_percent': 72.3,
+    'vapor-pressure_hpa': 8.4,
+    'dew-point_celsius': 4.4,
+    'air-pressure_hpa': 931.5,
+    'wind-direction_angle': 229.0,
+    'wind-speed_m/s': 4.6,
+    'gust-peak_m/s': 10.9,
+    'percipitation_mm': 0.2,
+    'snow-depth_cm': 0.0,
+    'solar-radiation_w/m2': 102.0,
+    'sunshine-duration_w/m2': 0.0,
+    'reference-evaporation_mm/h': 0.091,
+    'latitude_4326': 46.953,
+    'longitude_4326': 7.435,
 }
 
+def filter_periods_from_date(periods: List[str], from_date: datetime | None) -> List[str]:
+    """Return only periods that can contain data on/after from_date.
+
+    Period format is expected to be "YYYY-YYYY". Unknown formats are kept
+    to avoid accidentally dropping valid period identifiers.
+    """
+    if from_date is None:
+        return periods
+
+    target_year = from_date.year
+    filtered_periods: List[str] = []
+
+    for period in periods:
+        parts = period.split("-", maxsplit=1)
+        if len(parts) != 2:
+            filtered_periods.append(period)
+            continue
+
+        try:
+            _, end_year = int(parts[0]), int(parts[1])
+        except ValueError:
+            filtered_periods.append(period)
+            continue
+
+        if end_year >= target_year:
+            filtered_periods.append(period)
+
+    return filtered_periods
 
 def create_collection(station_code: str,config) -> dict | None:
     """Create collection once, using configured project settings."""
     station_code = station_code.lower().strip()
     return iot_utils.create_collection(
-        project_id=config.get("project_id", ""),
+        project_id=config.get("project_id"),
         master_key=config.get("master_key"),
-        name=station_code,
+        name="meteoswiss_" + station_code,
         description=(
             f"Weather data from MeteoSwiss {station_code} station"
         ),
         tags=["weather", "meteoswiss", "switzerland"],
-        schema=weather_schema,
+        schema=WEATHER_SCHEMA,
         base_url=config.get("base_url"),
         verify_ssl=config.get("verify_ssl", DEFAULT_VERIFY_SSL),
         timeout=config.get("request_timeout", DEFAULT_TIMEOUT),
@@ -78,65 +97,101 @@ def get_collection_id_from_station_code(config: dict, station_code: str) -> str:
         verify_ssl=config.get("verify_ssl", DEFAULT_VERIFY_SSL),
     )
 
+def _process_and_send_historical(url: str, station_code: str, project_id: str, collection_id: str,
+                      write_key: str, base_url: str, lat: float, lon: float,
+                      from_date: datetime | None, verify_ssl: bool, timeout: int,
+                      label: str = "") -> bool:
+    """Download, process, and send data from a given URL."""
+    try:
+        df = meteo_utils.download_csv(url, verify_ssl=verify_ssl, timeout=timeout)
+        df["reference_timestamp"] = pd.to_datetime(df["reference_timestamp"], format="%d.%m.%Y %H:%M")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main
-# ──────────────────────────────────────────────────────────────────────────────
+        # Never ingest today's (or future) records.
+        yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+        df = df[df["reference_timestamp"].dt.date <= yesterday]
+        if df.empty:
+            return False
+        
+        if from_date is not None:
+            df = df[df["reference_timestamp"] >= from_date]
+            if df.empty:
+                return False
+        
+        df_biosense = meteo_utils.rename_biosense(df)
+        records = meteo_utils.make_records(df_biosense, station_code, lat=lat, lon=lon)
+        
+        if records:
+            print(f"Sending {len(records)} {label} records for {station_code.upper()}")
+            iot_utils.send_data(project_id, collection_id, write_key, records, 
+                              base_url=base_url, verify_ssl=verify_ssl, timeout=timeout)
+            return True
+        else:
+            print(f"⚠ No {label} records to send for {station_code.upper()}")
+            return False
+    except Exception as e:
+        print(f"⚠ Failed to process {label} data: {e}")
+        return False
+
+
 def ingest_recent_data(config: dict, station_code: str, collection_id: str):
-
-    project_id = config.get("project_id")
+    """Ingest yesterday's hourly data from the MeteoSwiss recent file."""
+    station_code = station_code.lower().strip()
+    project_id = config.get("project_id", "")
     write_key = config.get("write_key")
-    base_url = config.get("base_url")
     verify_ssl = config.get("verify_ssl", DEFAULT_VERIFY_SSL)
     request_timeout = config.get("request_timeout", DEFAULT_TIMEOUT)
+    base_url = config.get("base_url", "")
 
-    station_code = station_code.lower().strip()
-
-    url_data = (
+    url_recent = (
         f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/"
-        f"{station_code}/ogd-smn_{station_code}_t_recent.csv"
+        f"{station_code}/ogd-smn_{station_code}_h_recent.csv"
     )
+    print(f"Downloading: {url_recent}")
 
-    print(f"Downloading: {url_data}")
+    try:
+        df_recent = meteo_utils.download_csv(
+            url_recent,
+            verify_ssl=verify_ssl,
+            timeout=request_timeout,
+        )
+        df_recent["reference_timestamp"] = pd.to_datetime(
+            df_recent["reference_timestamp"],
+            format="%d.%m.%Y %H:%M",
+        )
 
-    df_data = meteo_utils.download_csv(url_data, verify_ssl=verify_ssl, timeout=request_timeout)
+        yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+        df_recent = df_recent[df_recent["reference_timestamp"].dt.date == yesterday]
+        if df_recent.empty:
+            print(f"⚠ No data for {station_code.upper()} on {yesterday}")
+            return
 
-    df_data["reference_timestamp"] = pd.to_datetime(
-        df_data["reference_timestamp"], format="%d.%m.%Y %H:%M"
-    )
+        lat, lon = meteo_utils.get_station_lat_lon(station_code, STATION_META_PATH)
+        df_biosense = meteo_utils.rename_biosense(df_recent)
+        records = meteo_utils.make_records(df_biosense, station_code, lat=lat, lon=lon)
 
-    yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
-    df_yesterday = df_data[df_data["reference_timestamp"].dt.date == yesterday]
-
-    if df_yesterday.empty:
-        print(f"⚠ No data for {station_code.upper()} on {yesterday}")
-        return
-
-    df_param = pd.read_csv(PARAM_FILE, sep=";", encoding="latin1", dtype=str)
-    param_map = meteo_utils.build_param_map_from_df(df_param)
-
-    df_named = meteo_utils.rename_data_columns_meteoswiss_metadata(df_yesterday, param_map)
-
-    os.makedirs("logs", exist_ok=True)
-    df_named.to_csv(f"logs/meteoswiss_{station_code}_{yesterday}.csv", index=False)
-
-    df_biosense = meteo_utils.rename_biosense(df_named)
-
-    lat, lon = meteo_utils.get_station_lat_lon(station_code, STATION_META_FILE)
-
-    records = meteo_utils.make_records(df_biosense, station_code, lat=lat, lon=lon)
-
-    if not records:
-        print("No records to send.")
-        return
-
-    iot_utils.send_data(project_id, collection_id, write_key, records, base_url=base_url)
+        if records:
+            print(f"Sending {len(records)} records for {station_code.upper()} (yesterday)")
+            iot_utils.send_data(
+                project_id,
+                collection_id,
+                write_key,
+                records,
+                base_url=base_url,
+                verify_ssl=verify_ssl,
+                timeout=request_timeout,
+            )
+        else:
+            print(f"⚠ No records to send for {station_code.upper()} (yesterday)")
+    except Exception as e:
+        print(f"⚠ Failed to process recent data for {station_code.upper()}: {e}")
 
 
 def ingest_historical_data(config: dict, station_code: str, from_date: datetime | None = None, collection_id: str = ""):
     """
     Process all available historical hourly files for the given station:
-    1980-1989, 1990-1999, 2000-2009, 2010-2019, 2020-2029.
+    1980-1989, 1990-1999, 2000-2009, 2010-2019, 2020-2029, and recent data.
+    The period 2020-2029 does not contain data from 2026. It is only until last year, so 
+    we have to download via the other link
     
     Args:
         station_code: Station code to process
@@ -147,78 +202,31 @@ def ingest_historical_data(config: dict, station_code: str, from_date: datetime 
     write_key = config.get("write_key")
     verify_ssl = config.get("verify_ssl", DEFAULT_VERIFY_SSL)
     request_timeout = config.get("request_timeout", DEFAULT_TIMEOUT)
+    base_url = config.get("base_url", "")
+    
+    lat, lon = meteo_utils.get_station_lat_lon(station_code, STATION_META_PATH)
+    
+    historical_periods = ["1980-1989", "1990-1999", "2000-2009", "2010-2019", "2020-2029"]
+    periods_to_process = filter_periods_from_date(historical_periods, from_date)
 
-    if not project_id or not write_key or not collection_id:
-        print("Missing required config (project_id/write_key/collection_id_tae)")
+    if not periods_to_process:
+        print("No historical periods match the provided --historical-from date")
         return
 
-    periods = [
-        "1980-1989",
-        "1990-1999",
-        "2000-2009",
-        "2010-2019",
-        "2020-2029",
-    ]
-
-    base_url = config.get("base_url", "")
-
-    df_param = pd.read_csv(PARAM_FILE, sep=";", encoding="latin1", dtype=str)
-    param_map = meteo_utils.build_param_map_from_df(df_param)
-
-    lat, lon = meteo_utils.get_station_lat_lon(station_code, STATION_META_FILE)
-
-    for period in periods:
-        url_data = (
-            f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/"
-            f"{station_code}/ogd-smn_{station_code}_h_historical_{period}.csv"
-        )
-
-        print(f"Downloading historical {period}: {url_data}")
-
-        try:
-            df_data = meteo_utils.download_csv(url_data, verify_ssl=verify_ssl, timeout=request_timeout)
-        except Exception as e:
-            print(f"⚠ Failed to download {url_data}: {e}")
-            continue
-
-        try:
-            df_data["reference_timestamp"] = pd.to_datetime(
-                df_data["reference_timestamp"], format="%d.%m.%Y %H:%M"
-            )
-        except Exception as e:
-            print(f"⚠ Failed to parse timestamps for {period}: {e}")
-            continue
-
-        # Filter data based on from_date if specified
-        if from_date is not None:
-            df_data = df_data[df_data["reference_timestamp"] >= from_date]
-            if df_data.empty:
-                print(f"⚠ No data in {period} after {from_date.date()}")
-                continue
-
-        df_named = meteo_utils.rename_data_columns_meteoswiss_metadata(df_data, param_map)
-
-        os.makedirs("logs", exist_ok=True)
-        df_named.to_csv(
-            f"logs/meteoswiss_{station_code}_historical_{period}.csv",
-            index=False,
-        )
-
-        df_biosense = meteo_utils.rename_biosense(df_named)
-
-        records = meteo_utils.make_records(df_biosense, station_code, lat=lat, lon=lon)
-
-        if not records:
-            print(f"⚠ No records to send for {station_code.upper()} {period}")
-            continue
-
-        print(f"Sending {len(records)} records for {station_code.upper()} {period}")
-        iot_utils.send_data(project_id, collection_id, write_key, records, base_url=base_url)
+    # Process only relevant historical periods
+    for period in periods_to_process:
+        url = f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station_code}/ogd-smn_{station_code}_h_historical_{period}.csv"
+        print(f"Downloading historical {period}: {url}")
+        _process_and_send_historical(url, station_code, project_id, collection_id, write_key, 
+                         base_url, lat, lon, from_date, verify_ssl, request_timeout, f"({period})")
+    
+    # Process recent data (current year)
+    url_recent = f"https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station_code}/ogd-smn_{station_code}_h_recent.csv"
+    print(f"Downloading recent data: {url_recent}")
+    _process_and_send_historical(url_recent, station_code, project_id, collection_id, write_key, 
+                     base_url, lat, lon, from_date, verify_ssl, request_timeout, "(recent)")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CLI entry point
-# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Download and push MeteoSwiss data for a single SMN station."
@@ -250,7 +258,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load config once
-    config = iot_utils.load_config(secrets_path="config/secrets.json", settings_path="config/settings.json")
+    config = iot_utils.load_config(secrets_path=SECRETS_PATH, settings_path=SETTINGS_PATH)
 
     if args.create_collection:
         create_collection(args.station_code, config)
