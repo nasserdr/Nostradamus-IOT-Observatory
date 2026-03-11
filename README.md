@@ -7,13 +7,13 @@ This repository contains the codebase responsible for **ingesting Swiss MeteoSwi
 
 The ingestion workflow has two components:
 
-### 1️⃣ Historical Backfill (One-Time Per Station)
+### 1️⃣ Historical Backfill
 - Fetch all available historical MeteoSwiss *hourly* data.
-- Retrieve everything up to **yesterday**.
+- Retrieve everything up to **yesterday** or from **(YYYY-MM-DD)** up to **yesterday**.
 - Upload the full dataset in bulk to the Observatory.
 
 ### 2️⃣ Daily Incremental Updates (Automated)
-- A daily **crontab job** fetches the last 24 hours of data.
+- A daily **crontab job** fetches the data from yesterday.
 - Ensures continuous synchronization with MeteoSwiss.
 
 ---
@@ -22,8 +22,9 @@ The ingestion workflow has two components:
 
 Use this toolkit when:
 
-### ✔️ 1. Re-ingesting Data for a Station
+### ✔️ 1. Ingesting Data for a Station
 Useful for:
+- Daily data updating
 - Infrastructure migration  
 - Data corruption or loss  
 - Failed historical ingestion  
@@ -31,77 +32,99 @@ Useful for:
 
 ### ✔️ 2. Adding a New MeteoSwiss Station
 - All stations are referenced via their **MeteoSwiss station codes**.  
-- **TODO:** Add station list link →  
-  https://www.meteoswiss.admin.ch/services-and-publications/portals-and-tools/station-finder.html
-
+- See the list of station codes in the file: config/meteoswiss_stations.csv or at [MeteoSwiss](https://www.meteoswiss.admin.ch/climate/the-climate-of-switzerland/records-and-extremes/extreme-value-analyses/background-information/station-information.html)
+- For the MeteoSwiss Station in Taenikon at Agroscope, use **TAE**
 ---
 
-## 🚀 How to Run the Historical Backfill
+## 🚀 Quickstart
 
-### 1. Install Dependencies
+### 1. Prerequisites
+- Python 3.11
+
+### 2. Clone and install dependencies
 ```bash
-uv sync
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 2. Ingest Historical Data
-uv run get_and_ingest_historical_data_hourly.py --station <station_code>
+### 3. Configure settings and secrets
+Replace secrets.json fields with your keys:
+```bash
+{
+  "master": "your-master-key",
+  "read": "your-read-key",
+  "write": "your-write-key"
+}
+```
+### 4. Run ingestion
+Before ingesting weather data, one has to create a collection for <station_code> (e.g. tae)
+```bash
+python ./scripts/ingest_data.py <station_code> --create-collection
+```
 
-### 3. Verify Ingestion
-uv run verify_historical_data_hourly.py --station <station_code>
+Recent-only mode (yesterday only):
+```bash
+python ./scripts/ingest_data.py <station_code>
+```
+
+Historical mode:
+```bash
+python ./scripts/ingest_data.py <station_code> --historical
+```
+
+Historical mode from a date:
+```bash
+python ./scripts/ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
+```
 
 ## ⏰ Setting Up the Daily Crontab
 
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
-1 0 * * * cd /path/to/project && uv run ingest_daily_data_hourly.py --station <station_code> >> /var/log/nostradamus_ingest.log 2>&1
-
-Example for Multiple Stations
-1 0 * * * uv run ingest_daily_data_hourly.py --station STATION1
-3 0 * * * uv run ingest_daily_data_hourly.py --station STATION2
-5 0 * * * uv run ingest_daily_data_hourly.py --station STATION3
+```bash
+1 0 * * * cd /path/to/project && /.venv/bin/python ./scripts/ingest_data.py <station_code>
+```
 
 ## 🌡️ Meteorological Variables & Units
 
-| Variable Name        | Description           | Unit   | Example |
-|----------------------|-----------------------|--------|---------|
-| temperature_c        | Air temperature       | °C     | 12.3    |
-| humidity_percent     | Relative humidity     | %      | 76      |
-| wind_speed_ms        | Wind speed            | m/s    | 3.1     |
-| wind_direction_deg   | Wind direction        | degrees| 240     |
-| precip_mm            | Precipitation         | mm     | 0.4     |
-| global_rad_wm2       | Global radiation      | W/m²   | 240     |
-| pressure_hpa         | Air pressure          | hPa    | 1013    |
-| snow_height_cm       | Snow height           | cm     | 12      |
+| Variable Name | Description | Unit | Example |
+|---|---|---|---|
+| air-temperature_celsius | Air temperature at 2 m | °C | 9.1 |
+| air-temperature_celsius_5cm | Air temperature at 5 cm | °C | 7.9 |
+| air-humidity_percent | Relative humidity | % | 72.3 |
+| vapor-pressure_hpa | Vapor pressure | hPa | 8.4 |
+| dew-point_celsius | Dew point temperature | °C | 4.4 |
+| air-pressure_hpa | Air pressure | hPa | 931.5 |
+| wind-direction_angle | Wind direction | degrees | 229.0 |
+| wind-speed_m/s | Wind speed | m/s | 4.6 |
+| gust-peak_m/s | Gust peak speed | m/s | 10.9 |
+| percipitation_mm | Precipitation | mm | 0.2 |
+| snow-depth_cm | Snow depth | cm | 0.0 |
+| solar-radiation_w/m2 | Solar radiation | W/m² | 102.0 |
+| sunshine-duration_w/m2 | Sunshine duration | project-specific convention | 0.0 |
+| reference-evaporation_mm/h | Reference evaporation | mm/h | 0.091 |
+| latitude_4326 | Latitude (WGS84 / EPSG:4326) | decimal degrees | 46.953 |
+| longitude_4326 | Longitude (WGS84 / EPSG:4326) | decimal degrees | 7.435 |
 
 
 ## 📁 Folder Structure Overview
-project/
-├── scripts/
-│   ├── get_and_ingest_historical_data_hourly.py
-│   ├── ingest_daily_data_hourly.py
-│   ├── verify_historical_data_hourly.py
-├── config/
-│   ├── settings.toml
-│   ├── secrets.toml
-├── modules/
-│   ├── ingestion.py
-│   ├── meteo_fetcher.py
-│   ├── utils.py
-├── logs/
-│   ├── ingestion.log
-│   ├── verification.log
-└── README.md
-
-## 🔐 Environment Variables & Secrets
-Configure the configs.json file as shown below:
 ```
-{
-    "PROJECT_ID": "161854af-716b-49e8-bc55-cd975699db54",
-    "BASE_URL": "https://nostradamus-ioto.issel.ee.auth.gr/api/v1",
-    "master": "4c2e33648ea207d68e2421f5bf17849900abb2b9f540eeffb56b3514edd5fd56",
-    "read": "7cd6fa2146c27733efba64d084b5da6f8c10de562a52fdacecd6a07be532e00f",
-    "write": "74b5b8d39b519a4b40d8f683028a5e400193ae0cfe6c51a1cd266e177283d840"
-}
+Nostradamus-IOT-Observatory/
+├── .gitignore
+├── pyproject.toml
+├── requirements.txt
+├── uv.lock
+├── README.md
+├── config/
+│   ├── meta_parameters.csv
+│   ├── meteoswiss_stations.csv
+│   ├── secrets.json
+│   └── settings.json
+└── scripts/
+  ├── ingest_data.py
+  ├── iot_utils.py
+  └── meteo_utils.py
 ```
 
 ## 📬 Questions or Contributions?

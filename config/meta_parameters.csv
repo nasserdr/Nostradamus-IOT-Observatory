@@ -1,0 +1,45 @@
+Code;parameter_description_en;parameter_group_en;parameter_granularity;parameter_decimals;parameter_datatype;parameter_unit;iot_variable_name
+tre200h0;"Air temperature 2 m above ground; hourly mean";Temperature;H;1;Float;°C;air-temperature_celsius
+tre200hn;"Air temperature 2 m above ground; hourly minimum";Temperature;H;1;Float;°C;
+tre200hx;"Air temperature 2 m above ground; hourly maximum";Temperature;H;1;Float;°C;
+tre005h0;"Air temperature at 5 cm above grass; hourly mean";Temperature;H;1;Float;°C;air-temperature_celsius_5cm
+tre005hn;"Air temperature at 5 cm above grass; hourly minimum";Temperature;H;1;Float;°C;
+;;;;;;;
+ure200h0;"Relative air humidity 2 m above ground; hourly mean";Humidity;H;1;Float;%;air-humidity_percent
+;;;;;;;
+pva200h0;"Vapour pressure 2 m above ground; hourly mean";Humidity;H;1;Float;hPa;vapor-pressure_hpa
+;;;;;;;
+tde200h0;"Dew point 2 m above ground; hourly mean";Humidity;H;1;Float;°C;dew-point_celsius
+;;;;;;;
+prestah0;"Atmospheric pressure at barometric altitude (QFE); hourly mean";Pressure;H;1;Float;hPa;air-pressure_hpa
+pp0qffh0;"Pressure reduced to sea level (QFF); hourly mean";Pressure;H;1;Float;hPa;
+pp0qnhh0;"Pressure reduced to sea level according to standard atmosphere (QNH); hourly mean";Pressure;H;1;Float;hPa;
+;;;;;;;
+ppz700h0;"Geopotential height of the 700 hPA level; hourly mean";Pressure;H;1;Float;gpm;
+ppz850h0;"Geopotential height of the 850 hPA level; hourly mean";Pressure;H;1;Float;gpm;
+;;;;;;;
+dkl010h0;"Wind direction; hourly mean";Wind;H;0;Integer;°;wind-direction_angle
+fkl010h0;"Wind speed scalar; hourly mean in m/s";Wind;H;1;Float;m/s;wind-speed_m/s
+fu3010h0;"Wind speed scalar; hourly mean in km/h";Wind;H;1;Float;km/h;
+fve010h0;"Wind speed vectorial; hourly mean in m/s";Wind;H;1;Float;m/s;
+;;;;;;;
+fkl010h1;"Gust peak (one second); hourly maximum in m/s";Wind;H;1;Float;m/s;gust-peak_m/s
+fu3010h1;"Gust peak (one second); hourly maximum in km/h";Wind;H;1;Float;km/h;
+fkl010h3;"Gust peak (three seconds); hourly maximum in m/s";Wind;H;1;Float;m/s;
+fu3010h3;"Gust peak (three seconds); hourly maximum in km/h";Wind;H;1;Float;km/h;
+;;;;;;;
+wcc006h0;"Foehn index; hour value";Wind;H;0;Integer;min;
+;;;;;;;
+rre150h0;"Precipitation; hourly total";Precipitation;H;1;Float;mm;percipitation_mm
+;;;;;;;
+htoauths;"Snow depth (automatic measurement); hourly current value";snow;H;0;Integer;cm;snow-depth_cm
+;;;;;;;
+gre000h0;"Global radiation; hourly mean";Radiation;H;0;Integer;W/m²;solar-radiation_w/m2
+oli000h0;"Longwave incoming radiation; hourly mean";Radiation;H;0;Integer;W/m²;
+olo000h0;"Longwave outgoing radiation; hourly mean";Radiation;H;0;Integer;W/m²;
+osr000h0;"Shortwave reflected radiation; hourly mean";Radiation;H;0;Integer;W/m²;
+ods000h0;"Diffuse radiation; hourly mean";Radiation;H;0;Integer;W/m²;
+;;;;;;;
+sre000h0;"Sunshine duration; hourly total";Sunshine;H;0;Integer;min;sunshine-duration_w/m2
+;;;;;;;
+erefaoh0;"Reference evaporation from FAO; hourly total";evaporation;H;3;Float;mm/h;reference-evaporation_mm/h
