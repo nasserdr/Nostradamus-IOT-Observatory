@@ -86,45 +86,42 @@ Create a job that runs every day at 00:01, ingesting the previous day's data:
 
 ## 🌡️ Meteorological Variables & Units
 
-| Variable Name        | Description           | Unit   | Example |
-|----------------------|-----------------------|--------|---------|
-| temperature_c        | Air temperature       | °C     | 12.3    |
-| humidity_percent     | Relative humidity     | %      | 76      |
-| wind_speed_ms        | Wind speed            | m/s    | 3.1     |
-| wind_direction_deg   | Wind direction        | degrees| 240     |
-| precip_mm            | Precipitation         | mm     | 0.4     |
-| global_rad_wm2       | Global radiation      | W/m²   | 240     |
-| pressure_hpa         | Air pressure          | hPa    | 1013    |
-| snow_height_cm       | Snow height           | cm     | 12      |
+| Variable Name | Description | Unit | Example |
+|---|---|---|---|
+| air-temperature_celsius | Air temperature at 2 m | °C | 9.1 |
+| air-temperature_celsius_5cm | Air temperature at 5 cm | °C | 7.9 |
+| air-humidity_percent | Relative humidity | % | 72.3 |
+| vapor-pressure_hpa | Vapor pressure | hPa | 8.4 |
+| dew-point_celsius | Dew point temperature | °C | 4.4 |
+| air-pressure_hpa | Air pressure | hPa | 931.5 |
+| wind-direction_angle | Wind direction | degrees | 229.0 |
+| wind-speed_m/s | Wind speed | m/s | 4.6 |
+| gust-peak_m/s | Gust peak speed | m/s | 10.9 |
+| percipitation_mm | Precipitation | mm | 0.2 |
+| snow-depth_cm | Snow depth | cm | 0.0 |
+| solar-radiation_w/m2 | Solar radiation | W/m² | 102.0 |
+| sunshine-duration_w/m2 | Sunshine duration | project-specific convention | 0.0 |
+| reference-evaporation_mm/h | Reference evaporation | mm/h | 0.091 |
+| latitude_4326 | Latitude (WGS84 / EPSG:4326) | decimal degrees | 46.953 |
+| longitude_4326 | Longitude (WGS84 / EPSG:4326) | decimal degrees | 7.435 |
 
 
 ## 📁 Folder Structure Overview
 ```
-project/
-├── scripts/
-│   ├── get_and_ingest_historical_data_hourly.py
-│   ├── ingest_daily_data_hourly.py
-│   ├── verify_historical_data_hourly.py
+Nostradamus-IOT-Observatory/
+├── .gitignore
+├── pyproject.toml
+├── uv.lock
+├── README.md
 ├── config/
-│   ├── settings.toml
-│   ├── secrets.toml
-│   ├── ogd-smn_meta_parameters.csv
-│   ├── ch.meteoschweiz.messnetz-automatisch_en.csv
-├── logs/
-│   ├── some_csv.log
-└── README.md
-```
-
-## 🔐 Environment Variables & Secrets
-Configure the configs.json file as shown below:
-```
-{
-    "PROJECT_ID": <PROJECT_ID>,
-    "BASE_URL": <BASE_URL>,
-    "master": <MASTER_KEY>,
-    "read": <READ_KEY>,
-    "write": <WRITE_KEY>
-}
+│   ├── meta_parameters.csv
+│   ├── meteoswiss_stations.csv
+│   ├── secrets.json
+│   └── settings.json
+└── scripts/
+  ├── ingest_data.py
+  ├── iot_utils.py
+  └── meteo_utils.py
 ```
 
 ## 📬 Questions or Contributions?
