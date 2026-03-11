@@ -9,7 +9,7 @@ The ingestion workflow has two components:
 
 ### 1️⃣ Historical Backfill
 - Fetch all available historical MeteoSwiss *hourly* data.
-- Retrieve everything up to **yesterday** or from **from_date (YYYY-MM-DD)** up to **yesterday**.
+- Retrieve everything up to **yesterday** or from **(YYYY-MM-DD)** up to **yesterday**.
 - Upload the full dataset in bulk to the Observatory.
 
 ### 2️⃣ Daily Incremental Updates (Automated)
