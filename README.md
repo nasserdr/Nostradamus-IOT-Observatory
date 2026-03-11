@@ -32,7 +32,7 @@ Useful for:
 ### ✔️ 2. Adding a New MeteoSwiss Station
 - All stations are referenced via their **MeteoSwiss station codes**.  
 - See the list of station codes in the file: config/meteoswiss_stations.csv or at [MeteoSwiss](https://www.meteoswiss.admin.ch/climate/the-climate-of-switzerland/records-and-extremes/extreme-value-analyses/background-information/station-information.html)
-
+- For the MeteoSwiss Station in Taenikon at Agroscope, use **TAE**
 ---
 
 ## 🚀 Quickstart
