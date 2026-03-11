@@ -39,11 +39,13 @@ Useful for:
 
 ### 1. Prerequisites
 - Python 3.11
-- uv (recommended package/environment manager)
 
 ### 2. Clone and install dependencies
 ```bash
-uv sync
+python -m venv .venv
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
 ### 3. Configure settings and secrets
@@ -58,22 +60,22 @@ Replace secrets.json fields with your keys:
 ### 4. Run ingestion
 Before ingesting weather data, one has to create a collection for <station_code>
 ```bash
-uv run python ingest_data.py <station_code> --create-collection
+python .\scripts\ingest_data.py <station_code> --create-collection
 ```
 
 Recent-only mode (yesterday only):
 ```bash
-uv run python ingest_data.py <station_code>
+python .\scripts\ingest_data.py <station_code>
 ```
 
 Historical mode:
 ```bash
-uv run python ingest_data.py <station_code> --historical
+python .\scripts\ingest_data.py <station_code> --historical
 ```
 
 Historical model from a date:
 ```bash
-uv run python ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
+python .\scripts\ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
 ```
 
 ## ⏰ Setting Up the Daily Crontab
@@ -81,7 +83,7 @@ uv run python ingest_data.py <station_code> --historical --historical-from YYYY-
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
 ```bash
-1 0 * * * cd /path/to/project && uv run python ingest_data.py <station_code>
+1 0 * * * cd /path/to/project && /path/to/project/.venv/bin/python ./scripts/ingest_data.py <station_code>
 ```
 
 ## 🌡️ Meteorological Variables & Units
@@ -111,6 +113,7 @@ Create a job that runs every day at 00:01, ingesting the previous day's data:
 Nostradamus-IOT-Observatory/
 ├── .gitignore
 ├── pyproject.toml
+├── requirements.txt
 ├── uv.lock
 ├── README.md
 ├── config/

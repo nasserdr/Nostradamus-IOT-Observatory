@@ -1,11 +1,9 @@
 import io
-import re
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 from pathlib import Path
 
 import pandas as pd
 import requests
-import urllib3
 
 def download_csv(url: str, verify_ssl: bool = False, timeout: int = 30) -> pd.DataFrame:
     """

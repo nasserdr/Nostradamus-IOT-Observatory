@@ -1,11 +1,8 @@
-import os
 import argparse
 from typing import List
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-import requests
-import urllib3
 
 import iot_utils
 import meteo_utils
