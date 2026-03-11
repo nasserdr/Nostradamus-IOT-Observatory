@@ -43,8 +43,7 @@ Useful for:
 ### 2. Clone and install dependencies
 ```bash
 python -m venv .venv
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -60,22 +59,22 @@ Replace secrets.json fields with your keys:
 ### 4. Run ingestion
 Before ingesting weather data, one has to create a collection for <station_code>
 ```bash
-python .\scripts\ingest_data.py <station_code> --create-collection
+python ./scripts/ingest_data.py <station_code> --create-collection
 ```
 
 Recent-only mode (yesterday only):
 ```bash
-python .\scripts\ingest_data.py <station_code>
+python ./scripts/ingest_data.py <station_code>
 ```
 
 Historical mode:
 ```bash
-python .\scripts\ingest_data.py <station_code> --historical
+python ./scripts/ingest_data.py <station_code> --historical
 ```
 
 Historical mode from a date:
 ```bash
-python .\scripts\ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
+python ./scripts/ingest_data.py <station_code> --historical --historical-from YYYY-MM-DD
 ```
 
 ## ⏰ Setting Up the Daily Crontab
@@ -83,7 +82,7 @@ python .\scripts\ingest_data.py <station_code> --historical --historical-from YY
 Create a job that runs every day at 00:01, ingesting the previous day's data:
 
 ```bash
-1 0 * * * cd /path/to/project && /path/to/project/.venv/bin/python ./scripts/ingest_data.py <station_code>
+1 0 * * * cd /path/to/project && /.venv/bin/python ./scripts/ingest_data.py <station_code>
 ```
 
 ## 🌡️ Meteorological Variables & Units
