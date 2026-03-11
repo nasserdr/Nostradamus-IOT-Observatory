@@ -58,7 +58,7 @@ Replace secrets.json fields with your keys:
 }
 ```
 ### 4. Run ingestion
-Before ingesting weather data, one has to create a collection for <station_code>
+Before ingesting weather data, one has to create a collection for <station_code> (e.g. tae)
 ```bash
 python ./scripts/ingest_data.py <station_code> --create-collection
 ```
